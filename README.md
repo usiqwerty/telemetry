@@ -20,19 +20,19 @@ Prometheus - OpenSource система сбора метрик со своим �
 В проект нужно установить следующие пакеты:
 
 ```
-dotnet add OpenTelemetry
-dotnet add OpenTelemetry.Instrumentation.AspNetCore
-dotnet add OpenTelemetry.Extensions.Hosting
-dotnet add OpenTelemetry.Instrumentation.Http
-dotnet add OpenTelemetry.Exporter.OpenTelemetryProtocol
-dotnet add OpenTelemetry.Exporter.Prometheus.AspNetCore
+dotnet add telemetry.csproj package OpenTelemetry
+dotnet add telemetry.csproj package OpenTelemetry.Instrumentation.AspNetCore
+dotnet add telemetry.csproj package OpenTelemetry.Extensions.Hosting
+dotnet add telemetry.csproj package OpenTelemetry.Instrumentation.Http
+dotnet add telemetry.csproj package OpenTelemetry.Exporter.OpenTelemetryProtocol
+dotnet add telemetry.csproj package OpenTelemetry.Exporter.Prometheus.AspNetCore
 ```
 
 После этого можно запустить приложение и открыть Swagger. Выполни любой запрос.
 
 После этого открой в браузере http://localhost:5001/metrics.
 
-Изучи формат, посомтри на то, как выглядят пути в метриках. Это пригодится при настройке мониторинга.
+Изучи формат, посмотри на то, как выглядят пути в метриках. Это пригодится при настройке мониторинга.
 
 ### 1.2 Grafana
 
