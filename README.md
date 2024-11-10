@@ -25,12 +25,39 @@ dotnet add telemetry.csproj package OpenTelemetry.Instrumentation.AspNetCore
 dotnet add telemetry.csproj package OpenTelemetry.Extensions.Hosting
 dotnet add telemetry.csproj package OpenTelemetry.Instrumentation.Http
 dotnet add telemetry.csproj package OpenTelemetry.Exporter.OpenTelemetryProtocol
-dotnet add telemetry.csproj package OpenTelemetry.Exporter.Prometheus.AspNetCore
+dotnet add telemetry.csproj package OpenTelemetry.Exporter.Prometheus.AspNetCore --prerelease
 ```
 
-После этого можно запустить приложение и открыть Swagger. Выполни любой запрос.
+Добавь в Program.cs следующий код:
 
-После этого открой в браузере http://localhost:5001/metrics.
+```cs
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options
+        .SetResourceBuilder(
+            ResourceBuilder.CreateDefault()
+                .AddService("TelemetryExample"))
+        .AddConsoleExporter();
+});
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("TelemetryExample"))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddConsoleExporter())
+    .WithMetrics(metrics => metrics
+        .AddPrometheusExporter()
+        .AddAspNetCoreInstrumentation()
+        .AddConsoleExporter());
+```
+Что здесь сделали:
+- добавили создали новый билдер для телеметрии;
+- добавили трассировки и их запись в консоль;
+- добавили метрики с экспортом в Prometheus и их запись в консоль.
+
+После этого можно запустить приложение и открыть Swagger или просто открыть страницу приложения и попереходить по ссылкам.
+Выполни любой запрос.
+
+После этого открой в браузере http://localhost:5149/metrics.
 
 Изучи формат, посмотри на то, как выглядят пути в метриках. Это пригодится при настройке мониторинга.
 
@@ -45,3 +72,25 @@ dotnet add telemetry.csproj package OpenTelemetry.Exporter.Prometheus.AspNetCore
 Он позволяет поднимать несколько сервисов сразу, достаточно описать их в файле `compose.yaml` (или `compose.yml`).
 
 Если у вас установлен Docker Desktop, то docker compose уже есть.
+
+Создай в любом удобном месте файл `compose.yaml` и напиши в нём следующее содержимое:
+```
+services:
+  prometheus:
+    image: "prom/prometheus"
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: "grafana/grafana-oss"
+    ports:
+      - "3000:3000"
+```
+
+Что здесь происходит:
+- описали сервисы prometheus и grafana
+- для каждого их них указали образ, из которого они поднимаются, и маппинг портов.
+
+Чуть позже мы ещё донастроим prometheus, но сейчас подними приложения с помощью командый
+`docker compose up`. После того, как всё скачается и поднимется, перейди в браузере по адресам
+`http://localhost:9090` (Prometheus) и `http://localhost:3000` (Grafana). Всё должно открываться.
