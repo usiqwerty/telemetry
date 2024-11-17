@@ -49,7 +49,9 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddConsoleExporter());
 ```
+
 Что здесь сделали:
+
 - добавили создали новый билдер для телеметрии;
 - добавили трассировки и их запись в консоль;
 - добавили метрики с экспортом в Prometheus и их запись в консоль.
@@ -74,7 +76,8 @@ builder.Services.AddOpenTelemetry()
 Если у вас установлен Docker Desktop, то docker compose уже есть.
 
 Создай в любом удобном месте файл `compose.yaml` и напиши в нём следующее содержимое:
-```
+
+```yaml
 services:
   prometheus:
     image: "prom/prometheus"
@@ -88,9 +91,73 @@ services:
 ```
 
 Что здесь происходит:
+
 - описали сервисы prometheus и grafana
 - для каждого их них указали образ, из которого они поднимаются, и маппинг портов.
 
 Чуть позже мы ещё донастроим prometheus, но сейчас подними приложения с помощью командый
 `docker compose up`. После того, как всё скачается и поднимется, перейди в браузере по адресам
 `http://localhost:9090` (Prometheus) и `http://localhost:3000` (Grafana). Всё должно открываться.
+
+### 1.4 Настройки скрейпинга Prometheus
+
+Для того, чтобы Prometheus знал, откуда ему брать метрики, нужно ему указать приложения в конфиге.
+Создай рядом с `compose.yaml` файл `prometheus.yml` с содержимым
+
+```yaml
+ - job_name: "prometheus"
+  # Override the global default and scrape targets from this job every 5 seconds.
+   scrape_interval: 5s
+   static_configs:
+      - targets: ["host.docker.internal:5149"]
+```
+
+Что здесь происходит:
+- `job_name` - метка сервиса (tag), с которой метрики будут приходить в Prometheus. Можно задать любой, но лучше сделать её
+равной имени сервиса.
+- `scrape_interval` - как часто Prometheus будет ходить в эндпойнт `metrics` нашего приложения.
+- `static_configs` - описание эндпойнтов сервиса.
+Поскольку мы ходим в `localhost` внутри или снаружи сети Docker'а, то localhost'ы везде будет разными,
+поэтому нужно указать `host.docker.internal` - единый алиас для хоста.
+
+Вообще говоря, можно указать Prometheus'у адреса других Prometheus'ов, это может быть актуально для больших наборов сервисов,
+например, внутри Kubernetes. 
+
+Теперь добавим в `compose.yaml` конфиг Prometheus:
+```yaml
+services:
+  prometheus:
+    image: "prom/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+
+  grafana:
+    image: "grafana/grafana-oss"
+    ports:
+      - "3000:3000"
+```
+Что мы сделали: мы примонтировали файл из файловой системы хоста в файловую систему образа. Теперь этот файл доступен внутри контейнера.
+Почему выбрали такой путь в ФС образа? Дело в том, что по умолчанию конфиг Prometheus лежит именно по такому пути.
+
+### 1.5 Запросы в Prometheus
+
+Открой `http://localhost:9090`, перед тобой откроется интерфейс Prometheus.
+Подними `WeatherApp`, потыкай в разные ссылки и попробуй запросить в интерфейсе Prometheus какую-нибудь метрику, например,
+`kestrel_connection_duration_seconds_bucket`. Посмотри разные режимы отображения.
+
+### 1.6 Графики в Grafana
+
+Открой `http://localhost:3000`, перед тобой откроется Grafana.
+
+Чтобы получить данные из Prometheus, надо его добавить как Data Source. Для этого в левой панели выбери пункт
+`New connections` -> `Add connection`, в списке выбери Prometheus и укажи адрес `http://host.docker.internal:9000`,
+после чего нажим на сохранение.
+
+Теперь попробуй построить по имеющимся метрикам графикам. Для этого зайди в раздел `Dashboards`, создай новый
+и нажми на `Add visualization`.
+
+Возьми для примера ту же метрику, что для экспериментов с Prometheus
+(она, кстати, показывает распределение длительности запросов) и попробуй её сгруппировать для сервиса. Подсказка:
+воспользуйся функциями из раздела `Aggregate`.
