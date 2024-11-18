@@ -1,6 +1,6 @@
 # telemetry
 
-Блок по телеметрии: OpenTelemetry, Prometheus, логирование
+Блок по телеметрии: OpenTelemetry, Prometheus, метрики.
 
 # 0. Prerequisites
 
@@ -25,12 +25,13 @@ dotnet add telemetry.csproj package OpenTelemetry.Instrumentation.AspNetCore
 dotnet add telemetry.csproj package OpenTelemetry.Extensions.Hosting
 dotnet add telemetry.csproj package OpenTelemetry.Instrumentation.Http
 dotnet add telemetry.csproj package OpenTelemetry.Exporter.OpenTelemetryProtocol
+dotnet add telemetry.csproj package OpenTelemetry.Exporter.Console
 dotnet add telemetry.csproj package OpenTelemetry.Exporter.Prometheus.AspNetCore --prerelease
 ```
 
 Добавь в Program.cs следующий код:
 
-```cs
+```csharp
 builder.Logging.AddOpenTelemetry(options =>
 {
     options
@@ -48,6 +49,10 @@ builder.Services.AddOpenTelemetry()
         .AddPrometheusExporter()
         .AddAspNetCoreInstrumentation()
         .AddConsoleExporter());
+
+...
+    
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
 ```
 
 Что здесь сделали:
@@ -92,8 +97,9 @@ services:
 
 Что здесь происходит:
 
-- описали сервисы prometheus и grafana
-- для каждого их них указали образ, из которого они поднимаются, и маппинг портов.
+- описали сервисы prometheus и grafana;
+- для каждого их них указали образ, из которого они поднимаются, и маппинг портов;
+- подключили endpoint для скрейпинга метрик.
 
 Чуть позже мы ещё донастроим prometheus, но сейчас подними приложения с помощью командый
 `docker compose up`. После того, как всё скачается и поднимется, перейди в браузере по адресам
@@ -161,3 +167,52 @@ services:
 Возьми для примера ту же метрику, что для экспериментов с Prometheus
 (она, кстати, показывает распределение длительности запросов) и попробуй её сгруппировать для сервиса. Подсказка:
 воспользуйся функциями из раздела `Aggregate`.
+
+### 1.7 Кастомные метрики
+
+Попробуем добавить свою метрику. Для этого создай класс `Metrics` с примерным содержимым:
+```csharp
+using System.Diagnostics.Metrics;
+
+namespace telemetry;
+
+public class Metrics
+{
+    private readonly Counter<int> indexRequestsCount;
+    private readonly Histogram<double> indexRequestsTime;
+
+    public Metrics(IMeterFactory meterFactory)
+    {
+        var meter = meterFactory.Create(nameof(Metrics));
+        indexRequestsCount = meter.CreateCounter<int>("requests.index.count", "pcs", "Количество запросов");
+        indexRequestsTime = meter.CreateHistogram<double>("requests.index.time", "ms", "Время запроса к index");
+    }
+
+    public void RequestToIndex(TimeSpan elapsed)
+    {
+        indexRequestsCount.Add(1);
+        indexRequestsTime.Record(elapsed.TotalMilliseconds);
+    }
+}
+```
+Посмотри, что здесь происходит, как именно создаются метрики.
+Counter - счётчик;
+Histogram - гистограмма (распределение).
+Для создания лучше использовать `IMeterFactory` вместо `new Meter()`, чтобы метрики попадали в общий endpoint.
+Кстати, для этого добавить к настройкам метрик в Program (там, где `WithMetrics`, после `AddConsoleExporter`) опцию
+```csharp
+.AddMeter(nameof(Metrics))
+```
+Название должно совпадать с названием meter в `Metrics`, поэтому удобно сделать в них константу с названием meter.
+
+Теперь добавь в `Index.cshtml.cs` получение `Metrics` через конструктор, а в `OnGet` код для примера:
+```csharp
+var sw = Stopwatch.StartNew();
+for (var i = 0; i < new Random().Next(0, 100); i++)
+{
+    Console.Write("1");
+}
+sw.Stop();
+_metrics.RequestToIndex(sw.Elapsed);
+```
+Запусти приложение и посмотри в endpoint'е `/metrics` свои метрики.
