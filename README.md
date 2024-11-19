@@ -111,6 +111,7 @@ services:
 Создай рядом с `compose.yaml` файл `prometheus.yml` с содержимым
 
 ```yaml
+scrape_configs:
  - job_name: "prometheus"
   # Override the global default and scrape targets from this job every 5 seconds.
    scrape_interval: 5s
@@ -158,7 +159,7 @@ services:
 Открой `http://localhost:3000`, перед тобой откроется Grafana.
 
 Чтобы получить данные из Prometheus, надо его добавить как Data Source. Для этого в левой панели выбери пункт
-`New connections` -> `Add connection`, в списке выбери Prometheus и укажи адрес `http://host.docker.internal:9000`,
+`New connections` -> `Add connection`, в списке выбери Prometheus и укажи адрес `http://host.docker.internal:9090`,
 после чего нажим на сохранение.
 
 Теперь попробуй построить по имеющимся метрикам графикам. Для этого зайди в раздел `Dashboards`, создай новый
